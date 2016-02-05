@@ -1,0 +1,5 @@
+mruby/*
+!mruby/.gitkeep
+hexchat_mrb_lib.h
+*.so
+
