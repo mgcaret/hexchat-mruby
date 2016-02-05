@@ -64,13 +64,13 @@ class HangTite < HexChat::Plugin
       @guess_nick = words[0]
       @guess_cons = nil
       @guess_aggr = nil
-      word = Regexp.last_match(1)
+      word = Regexp.last_match[1]
       # MRuby doesn't do UTF-8 very nicely
       word_t = word.gsub(@placeholder, "\t")
-      missed = Regexp.last_match(2)
-      used = Regexp.last_match(3).to_i
-      total = Regexp.last_match(4).to_i
-      category = Regexp.last_match(5)
+      missed = Regexp.last_match[2]
+      used = Regexp.last_match[3].to_i
+      total = Regexp.last_match[4].to_i
+      category = Regexp.last_match[5]
       file = "#{@dir}/#{category}.db"
       if File.exist?(file)
         begin
@@ -93,7 +93,7 @@ class HangTite < HexChat::Plugin
             has_not_neg = bits ^ inv
             stats = remove(full, word_t, missed)
             msg("Stats: #{stats} (#{word_t.length})")
-            word_sql = word_t.tr("\t", '_')
+            word_sql = word_t.gsub("\t", '_')
             stm.close
             stm = db.prepare 'SELECT word FROM words WHERE length = ? AND word LIKE ? AND (has & ? == ?) AND (has_not & ? == ?) ORDER BY (has & ?) ASC, (has_not & ?) DESC LIMIT ?'
             stm.bind_params(word_t.length, word_sql, has_m, has_m, has_not_m, has_not_m, has_neg, has_not_neg, word_t.length <= 10 ? 5 : 3)
