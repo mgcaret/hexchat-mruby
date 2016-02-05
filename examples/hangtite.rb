@@ -156,7 +156,7 @@ class HangTite < HexChat::Plugin
   end
 
   def remove(str, *remove)
-    s = str.dup
+    s = str.downcase
     remove.each do |r|
       r.downcase.each_char { |c| s.gsub!(c, '') }
     end
