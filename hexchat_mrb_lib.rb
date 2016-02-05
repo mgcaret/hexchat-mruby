@@ -498,8 +498,10 @@ module HexChat
     end
 
     def get_prefs(*prefs)
-      if prefs.is_a?(Array)
+      if prefs.is_a?(Array) && prefs.count > 1
         prefs.map { |p| HexChat::Internal.get_prefs(p) }
+      elsif prefs.is_a?(Array)
+        HexChat::Internal.get_prefs(prefs.first)
       else
         HexChat::Internal.get_prefs(prefs)
       end
