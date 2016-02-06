@@ -158,15 +158,31 @@ hex_mrb_hook_unhook(struct mrb_hexchat_hook *hk)
   }
 }
 
+// I need to see if MRuby has this check already
+// if so, next two functions are redundant.
+static void
+hex_mrb_gc_register_if_not_nil(mrb_state *mrb, mrb_value value)
+{
+  if (!mrb_obj_equal(mrb, value, mrb_nil_value())) {
+    mrb_gc_register(mrb, value);
+  }
+}
+
+static void
+hex_mrb_gc_unregister_if_not_nil(mrb_state *mrb, mrb_value value)
+{
+  if (!mrb_obj_equal(mrb, value, mrb_nil_value())) {
+    mrb_gc_unregister(mrb, value);
+  }
+}
+
 // Free a mrb_hexchat_hook structure
 static void
 hex_mrb_hook_free(mrb_state *mrb, struct mrb_hexchat_hook *hk)
 {
   hex_mrb_hook_unhook(hk);
   mrb_gc_unregister(mrb, hk->block);
-  if (mrb_obj_equal(mrb, hk->ref, mrb_nil_value())) {
-    mrb_gc_unregister(mrb, hk->ref);	// Allow MRuby to GC the block
-  }
+  hex_mrb_gc_unregister_if_not_nil(mrb, hk->ref);
   mrb_free(mrb, hk);
 }
 
@@ -175,11 +191,9 @@ static mrb_value
 hex_mrb_hook_set_ref(mrb_state *mrb, struct mrb_hexchat_hook *hk,  mrb_value ref)
 {
   mrb_value old_ref = hk->ref;
-  if (mrb_obj_equal(mrb, hk->ref, mrb_nil_value())) {
-    mrb_gc_unregister(mrb, hk->ref);
-  }
+  hex_mrb_gc_unregister_if_not_nil(mrb, hk->ref);
   hk->ref = ref;
-  mrb_gc_register(mrb, hk->ref);
+  hex_mrb_gc_register_if_not_nil(mrb, hk->ref);
   return old_ref;
 }
 

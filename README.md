@@ -414,6 +414,8 @@ A.  This code was written using the Entertainment-Driven Development process.  T
 
 ### Will
 
+Look for opportunities to save/restore arena to prevent leaks.
+
 Event Attributes
 
   - `event_attrs_create`, `event_attrs_free`
