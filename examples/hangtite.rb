@@ -160,7 +160,7 @@ class HangTite < HexChat::Plugin
     remove.each do |r|
       r.downcase.each_char { |c| s.gsub!(c, '') }
     end
-    s
+    s.split('').uniq.join
   end
 
   # All plugins must register
