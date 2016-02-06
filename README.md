@@ -234,7 +234,6 @@ Method                | Action
 `pluginpref_get_str(variable)`        | Get a String plugin preference.
 `pluginpref_set_int(variable, value)` | Set an Integer plugin preference.   These are shared among all MRuby plugins, so namespace it accordingly.
 `pluginpref_set_str(variable, value)` | Set a String plugin preference.  Same caveat.
-
 `print(*args)`        | Print each of the args to the HexChat window.
 `puts`                | Alias of `print`.
 
