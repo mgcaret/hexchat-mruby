@@ -7,6 +7,7 @@ class HangTite < HexChat::Plugin
     # You might need to change some of this.
     # Demonstrates get_info function
     @dir = "#{get_info('configdir')}/mruby/hangtite"
+    @db_page_size = 30
     @placeholder = '␣'
     # Demonstrates formatting constants
     @h = "#{color(:lime, :black)} "
@@ -61,11 +62,10 @@ class HangTite < HexChat::Plugin
   def make_guess(words)
     m = words[1]
     if m =~ /^(.+)\s+\[(.*)\]\s+(\d+)\/(\d+)\s+\((.+)\)\s*$/
-      @guess_nick = words[0]
-      @guess_cons = nil
-      @guess_aggr = nil
+      @guess_nick, @guess_cons, @guess_aggr = [words[0], nil, nil]
       word = Regexp.last_match[1]
-      # MRuby doesn't do UTF-8 very nicely
+      # MRuby doesn't do UTF-8 very nicely, sub in something
+      # rather unlikely to be part of a word
       word_t = word.gsub(@placeholder, "\t")
       missed = Regexp.last_match[2]
       used = Regexp.last_match[3].to_i
@@ -74,35 +74,15 @@ class HangTite < HexChat::Plugin
       file = "#{@dir}/#{category}.db"
       if File.exist?(file)
         begin
-          stm = nil
-          full = nil
-          short = nil
-          bits = nil
           db = SQLite3::Database.new(file)
-          stm = db.prepare 'SELECT full, short, bits FROM frequencies WHERE length = ?'
-          stm.bind_params(word_t.length)
-          rs = stm.execute
-          if row = rs.next
-            full, short, bits = row
-            inv = (2**bits - 1).to_i
-          end
+          full, short, bits, inv = db_get_stats(db, word_t.length)
           if full && short && bits
-            has_m = mask(word_t, short, bits)
-            has_neg = bits ^ inv
-            has_not_m = mask(missed, short, bits)
-            has_not_neg = bits ^ inv
             stats = remove(full, word_t, missed)
             msg("Stats: #{stats} (#{word_t.length})")
-            word_sql = word_t.gsub("\t", '_')
-            stm.close
-            stm = db.prepare 'SELECT word FROM words WHERE length = ? AND word LIKE ? AND (has & ? == ?) AND (has_not & ? == ?) ORDER BY (has & ?) ASC, (has_not & ?) DESC LIMIT ?'
-            stm.bind_params(word_t.length, word_sql, has_m, has_m, has_not_m, has_not_m, has_neg, has_not_neg, word_t.length <= 10 ? 5 : 3)
-            words = []
-            rs = stm.execute
-            while row = rs.next
-              words.push(row.first)
-            end
-            msg(words.join(' | '))
+            t1 = Time.now
+            words = words_from_db(db, word_t, missed, short, bits, inv)
+            tt = (Time.now - t1).to_f.round(4)
+            msg("#{words.first(word_t.length > 10 ? 3 : 5).join(' | ')} (#{words.count} returned, #{tt} s)")
             if words.count == 1
               @guess_cons = remove(words[0], word_t, missed)
               @guess_aggr = @guess_cons
@@ -122,7 +102,6 @@ class HangTite < HexChat::Plugin
         rescue SQLite3::Exception => e
           msg "Exception occurred: #{e.message}"
         ensure
-          stm.close if stm
           db.close if db
         end
       else
@@ -162,7 +141,71 @@ class HangTite < HexChat::Plugin
     end
     s.split('').uniq.join
   end
+  
+  def word_masks(word, missed, short, bits, inv)
+    has_m = mask(word, short, bits)
+    has_neg = bits ^ inv
+    has_not_m = mask(missed, short, bits)
+    has_not_neg = bits ^ inv
+    [has_m, has_neg, has_not_m, has_not_neg]
+  end
 
+  def words_from_db(db, word_t, missed, short, bits, inv)
+    words = []
+    has_m, has_neg, has_not_m, has_not_neg = word_masks(word_t, missed, short, bits, inv)
+    word_sql = word_t.gsub("\t", '_')
+    missed_rxp = missed.gsub(/[^[:alnum:]]/, '') # Q&D avoid metachars
+    word_rxp = word_t.gsub("\t", "[^#{missed_rxp}]")
+    filter = missed.length > 0 ? Regexp.new("^#{word_rxp}$") : Regexp.new('.')
+    offset = 0
+    done = false
+    while !done
+      new_words = db_get_words(db, word_sql, has_m, has_not_m, has_neg, has_not_neg, @db_page_size, offset)
+      done = true if new_words.count < @db_page_size
+      new_words.each do |word|
+        words.push(word) if filter.match(word)
+      end
+      offset += @db_page_size
+    end
+    words
+  end
+  
+  def db_get_stats(db, length)
+    full, short, bits, inv = [nil, nil, nil, nil]
+    begin
+      stm = db.prepare 'SELECT full, short, bits FROM frequencies WHERE length = ?'
+      stm.bind_params(length)
+      rs = stm.execute
+      if row = rs.next
+        full, short, bits = row
+        inv = (2**bits - 1).to_i
+      end
+    rescue SQLite3::Exception => e
+      msg "Exception occurred: #{e.message}"
+    ensure
+      stm.close if stm && !stm.closed?
+    end
+    [full, short, bits, inv]
+  end
+  
+  def db_get_words(db, word_sql, has_m, has_not_m, has_neg, has_not_neg, limit, offset = 0)
+    words = []
+    begin
+      stm = db.prepare 'SELECT word FROM words WHERE length = ? AND word LIKE ? AND (has & ? == ?) AND (has_not & ? == ?) ORDER BY (has & ?) ASC, (has_not & ?) DESC LIMIT ? OFFSET ?'
+      stm.bind_params(word_sql.length, word_sql, has_m, has_m, has_not_m, has_not_m, has_neg, has_not_neg, limit, offset)
+      rs = stm.execute
+      while rs && !rs.eof?
+        row = rs.next
+        words.push(row.first) if row
+      end
+    rescue SQLite3::Exception => e
+      msg "Exception occurred: #{e.message}"
+    ensure
+      stm.close if stm && !stm.closed?
+    end
+    words
+  end
+  
   # All plugins must register
   register
 end
