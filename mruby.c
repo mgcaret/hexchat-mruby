@@ -267,10 +267,16 @@ hex_mrb_print_exc(mrb_state *mrb)
 {
   if (mrb->exc) {
     mrb_value e = mrb_obj_value(mrb->exc);
-    mrb_value t = mrb_exc_backtrace(mrb, e);
-    mrb_value i = mrb_inspect(mrb, e);
-    hexchat_print(ph, mrb_str_to_cstr(mrb, i));
-    hex_mrb_print_array(mrb, t);
+    if (mrb_obj_is_kind_of(mrb, e, E_SYSSTACK_ERROR)) {
+      mrb_value i = mrb_inspect(mrb, e);
+      hexchat_print(ph, mrb_str_to_cstr(mrb, i));
+      hexchat_print(ph, "Backtrace suppressed due to stack overflow!");
+    } else {
+      mrb_value t = mrb_exc_backtrace(mrb, e);
+      mrb_value i = mrb_inspect(mrb, e);
+      hexchat_print(ph, mrb_str_to_cstr(mrb, i));
+      hex_mrb_print_array(mrb, t);
+    }
   } else {
     hexchat_print(ph, "No exception!");
   }
