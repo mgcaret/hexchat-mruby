@@ -26,8 +26,8 @@ MRuby::Build.new do |conf|
   
   conf.gem :mgem => 'mruby-io'
   conf.gem :mgem => 'mruby-dir'
-  # conf.gem :mgem => 'mruby-pcre-regexp'
-  # conf.gem :mgem => 'mruby-sqlite'
+  conf.gem :mgem => 'mruby-pcre-regexp'
+  conf.gem :mgem => 'mruby-sqlite'
   # conf.gem :mgem => 'mruby-iijson'
 
   

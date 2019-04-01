@@ -15,7 +15,7 @@
 # rubocop:disable Style/MutableConstant
 
 module HexChat
-  VERSION = '0.0.1'
+  VERSION = '0.0.2'
 
   COLORS = {
     white: 0,
@@ -625,7 +625,7 @@ module HexChat
             "#{HexChat::Internal.get_info('libdirfs')}/mruby/#{file}"
           ].detect { |f| File.exist?(f) }
         end
-        success = HexChat::Internal.load(file) if file
+        success = file ? HexChat::Internal.load(file) : nil
         if success
           HexChat::Internal.print("MRuby: Loaded #{plugin}")
         else

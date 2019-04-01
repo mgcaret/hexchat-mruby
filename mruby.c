@@ -252,12 +252,16 @@ hex_mrb_obj_id_to_s(mrb_state *mrb, mrb_value v)
 static void
 hex_mrb_print_array(mrb_state *mrb, mrb_value array)
 {
-  mrb_int l = mrb_ary_len(mrb, array);
-  //printf("%lld lines in array\n", (long long int)l);
-  for (mrb_int i = 0; i < l; ++i) {
-    mrb_value v = mrb_ary_ref(mrb, array, i);
-    char *s = mrb_str_to_cstr(mrb, v);
-    hexchat_print(ph, s);
+  if (mrb_obj_is_kind_of(mrb, array, mrb_class_get(mrb, "Array"))) {
+    mrb_int l = RARRAY_LEN(array);
+    //printf("%lld lines in array\n", (long long int)l);
+    for (mrb_int i = 0; i < l; ++i) {
+      mrb_value v = mrb_ary_ref(mrb, array, i);
+      char *s = mrb_str_to_cstr(mrb, v);
+      hexchat_print(ph, s);
+    }
+  } else {
+    hexchat_print(ph, "hex_mrb_print_array: object is not array");
   }
 }
 
@@ -267,7 +271,7 @@ hex_mrb_print_exc(mrb_state *mrb)
 {
   if (mrb->exc) {
     mrb_value e = mrb_obj_value(mrb->exc);
-    if (mrb_obj_is_kind_of(mrb, e, E_SYSSTACK_ERROR)) {
+    if (mrb_obj_is_kind_of(mrb, e, mrb_class_get(mrb, "SystemStackError"))) {
       mrb_value i = mrb_inspect(mrb, e);
       hexchat_print(ph, mrb_str_to_cstr(mrb, i));
       hexchat_print(ph, "Backtrace suppressed due to stack overflow!");
@@ -275,7 +279,12 @@ hex_mrb_print_exc(mrb_state *mrb)
       mrb_value t = mrb_exc_backtrace(mrb, e);
       mrb_value i = mrb_inspect(mrb, e);
       hexchat_print(ph, mrb_str_to_cstr(mrb, i));
-      hex_mrb_print_array(mrb, t);
+      if (mrb_obj_is_kind_of(mrb, t, mrb_class_get(mrb, "Array"))) {
+        hex_mrb_print_array(mrb, t);
+      } else {
+        i = mrb_inspect(mrb, t);
+        hexchat_print(ph, mrb_str_to_cstr(mrb, i));
+      }
     }
   } else {
     hexchat_print(ph, "No exception!");
@@ -462,24 +471,27 @@ hex_mrb_xi_load(mrb_state *mrb, mrb_value self) {
   mrb_get_args(mrb, "z", &fname);
   file = fopen(fname, "rb");  // b flag for OSes that care...
   if (file != NULL) {
-    char buf[4];
+    char buf[5];
     size_t b_read;
     mrbc_context *c = mrbc_context_new(mrb);
+    int ai = mrb_gc_arena_save(mrb);
     mrbc_filename(mrb, c, fname);
     c->lineno = 1;
+    c->dump_result = TRUE;
     b_read = fread((void *)buf, 1, 4, file);
+    buf[b_read] = 0;
     rewind(file);
-    if (b_read == 4 && strncmp("RITE", buf, 4) == 0) {
-      // RiteVM compiled - load it
+    if (b_read == 4 && ((strncmp(RITE_BINARY_IDENT, buf, 4) == 0) || (strncmp(RITE_BINARY_IDENT_LIL, buf, 4)) == 0)) {
+      // RiteBinary - load it
       mrb_load_irep_file_cxt(mrb, file, c);
     } else {
-      // Reopen without binary flag and load it
+      // Reopen without binary flag and load it as text
       fclose(file);
       file = fopen(fname, "r");
       mrb_load_file_cxt(mrb, file, c);
+      // mrb_load_file(mrb, file);
     }
     fclose(file);
-    mrbc_context_free(mrb, c);
     if (mrb->exc) {
       hexchat_printf(ph, "error loading %s", fname);
       hex_mrb_print_exc(mrb);
@@ -488,6 +500,8 @@ hex_mrb_xi_load(mrb_state *mrb, mrb_value self) {
     } else {
       result = mrb_true_value();
     }
+    mrb_gc_arena_restore(mrb, ai);
+    mrbc_context_free(mrb, c);
   }
   return result;
 }
@@ -1123,12 +1137,12 @@ hex_mrb_command_eval (char *word[], char *word_eol[], mrb_state *mrb)
       c->lineno = 1;
       mrbc_filename(mrb, c, mrb_file_eval);
       v = mrb_load_string_cxt(mrb, word_eol[3], c);
-      mrbc_context_free(mrb, c);
       if (mrb->exc) {
-                      hexchat_print(ph, "MRuby: Error evaluating code:");
-              hex_mrb_print_exc(mrb);
-              mrb->exc = 0;
+        hexchat_print(ph, "MRuby: Error evaluating code:");
+        hex_mrb_print_exc(mrb);
+        mrb->exc = 0;
       }
+      mrbc_context_free(mrb, c);
       inspect = mrb_inspect(mrb, v);
       hexchat_printf(ph, "=> %s", mrb_str_to_cstr(mrb, inspect));
       mrbc_filename(mrb, c, mrb_file_none);

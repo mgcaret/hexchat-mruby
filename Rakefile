@@ -22,7 +22,7 @@ end
 
 desc "Build the plugin"
 task :build => [:mruby_build, :hexchat_mrb_lib] do
-  sh 'gcc mruby.c -O2 -Wall -shared -fPIC -o mruby.so -Imruby/include mruby/build/host/lib/libmruby.a'
+  sh 'gcc mruby.c -O0 -ggdb -Wall -shared -fPIC -o mruby.so -Imruby/include mruby/build/host/lib/libmruby.a'
 end
 
 desc "Clean MRuby"
@@ -45,7 +45,7 @@ task :clean => [:plugin_clean, :mruby_clean] do
 end
 
 desc "Install in ~/.config/hexchat/..."
-task :install do
+task :install => [:build] do
   sh '[ -d ~/.config/hexchat/addons ]'
   sh 'cp -f mruby.so ~/.config/hexchat/addons'
   sh 'mkdir -p ~/.config/hexchat/mruby'
